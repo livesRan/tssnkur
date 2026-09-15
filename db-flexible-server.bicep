@@ -1,7 +1,7 @@
 // ==============================================================================
 // BICEP TEST TEMPLATE: VNet + Subnet + PrivateDNS + MySQL + 1 Test VM
 // !!! TEST ONLY, Password hardcoded, DO NOT COMMIT TO GIT / PRODUCTION !!!
-// Fixed: VM SKU changed to Standard_D2s_v5 for southeastasia capacity
+// Fix: add dependsOn for MySQL to wait privateDnsZoneLink
 // ==============================================================================
 @description('Azure Region')
 param location string = 'southeastasia'
@@ -126,6 +126,9 @@ resource mysqlServer 'Microsoft.DBforMySQL/flexibleServers@2023-12-30' = {
       geoRedundantBackup: 'Disabled'
     }
   }
+  dependsOn: [
+    privateDnsZoneLink // 关键：等待DNS VNet链接完成再创建MySQL
+  ]
 }
 
 // --------------------------
@@ -173,7 +176,7 @@ resource appVms 'Microsoft.Compute/virtualMachines@2023-09-01' = [for i in range
       id: appAvailabilitySet.id
     }
     hardwareProfile: {
-      vmSize: 'Standard_D2s_v5' // <==== New SKU
+      vmSize: 'Standard_D2s_v5'
     }
     osProfile: {
       computerName: 'app-web-${padLeft(string(i+1),2,'0')}'
