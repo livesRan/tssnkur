@@ -1,0 +1,29 @@
+name: Initialize DB Config
+run-name: Run initialize-db-config.sh
+on:
+  workflow_dispatch: # 手动触发
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  init-db:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Add execute permission
+        run: chmod +x ./initialize-db-config.sh
+
+      - name: Run initialize db script
+        run: ./initialize-db-config.sh
