@@ -1,0 +1,29 @@
+name: Scale DB Spec
+run-name: Run scale-db-spec.sh
+on:
+  workflow_dispatch: # 手动触发
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  scale-db:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Add execute permission
+        run: chmod +x ./scale-db-spec.sh
+
+      - name: Run scale db script
+        run: ./scale-db-spec.sh
