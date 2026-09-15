@@ -1,6 +1,7 @@
 // ==============================================================================
 // BICEP TEMPLATE FOR AZURE DATABASE FOR MYSQL FLEXIBLE SERVER WITH HA & VNET
 // PROJECT: EduFlow LMS DB Migration (Tssnkur Technology Co Ltd)
+// TEST VERSION: ONLY 1 APP VM + 1 NIC
 // ==============================================================================
 @description('部署资源所在的地理区域')
 param location string = 'southeastasia'
@@ -100,7 +101,7 @@ output serverFullyQualifiedDomainName string = mysqlServer.properties.fullyQuali
 output serverResourceId string = mysqlServer.id
 
 // ==============================================================================
-// APPLICATION INFRASTRUCTURE PROVISIONING (IaaS VM - 12 Nodes app-web-01 to 12)
+// APPLICATION INFRASTRUCTURE PROVISIONING (IaaS VM - 1 Node app-web-01)
 // ==============================================================================
 resource appSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' existing = {
   parent: vnet
@@ -117,7 +118,8 @@ resource appAvailabilitySet 'Microsoft.Compute/availabilitySets@2023-09-01' = {
   }
 }
 
-resource appNics 'Microsoft.Network/networkInterfaces@2023-09-01' = [for i in range(0, 12): {
+// 单网卡：app-web-01-nic，静态IP 10.1.1.11
+resource appNics 'Microsoft.Network/networkInterfaces@2023-09-01' = [for i in range(0, 1): {
   name: 'app-web-${padLeft(string(i + 1), 2, '0')}-nic'
   location: location
   tags: tags
@@ -137,7 +139,8 @@ resource appNics 'Microsoft.Network/networkInterfaces@2023-09-01' = [for i in ra
   }
 }]
 
-resource appVms 'Microsoft.Compute/virtualMachines@2023-09-01' = [for i in range(0, 12): {
+// 单台VM：app-web-01
+resource appVms 'Microsoft.Compute/virtualMachines@2023-09-01' = [for i in range(0, 1): {
   name: 'app-web-${padLeft(string(i + 1), 2, '0')}'
   location: location
   tags: tags
