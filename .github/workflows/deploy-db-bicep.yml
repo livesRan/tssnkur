@@ -1,14 +1,13 @@
 name: Deploy MySQL Bicep
 run-name: Deploy MySQL Flexible Server (Bicep)
 on:
-  workflow_dispatch: # 手动触发
+  workflow_dispatch: # 支持手动触发
   push:
     branches: [ main ]
     paths:
       - 'db-flexible-server.bicep'
 
 permissions:
-  id-token: write
   contents: read
 
 jobs:
@@ -16,18 +15,20 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Azure Login OIDC
+      - name: Azure Login (Service Principal)
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          auth-type: SERVICE_PRINCIPAL
+          client-id: ${{ fromJson(secrets.TSSNKUR_SECRET).clientId }}
+          tenant-id: ${{ fromJson(secrets.TSSNKUR_SECRET).tenantId }}
+          client-secret: ${{ fromJson(secrets.TSSNKUR_SECRET).clientSecret }}
+          subscription-id: ${{ fromJson(secrets.TSSNKUR_SECRET).subscriptionId }}
 
-      - name: Force set target subscription
-        run: az account set --subscription 3bbc5821-b30f-476a-81c2-795ae462405a
+      - name: Validate current Azure subscription
+        run: az account show --query id -o tsv
 
       - name: Deploy Bicep template
         run: |
