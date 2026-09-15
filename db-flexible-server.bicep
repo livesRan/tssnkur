@@ -1,47 +1,86 @@
 // ==============================================================================
-// BICEP TEMPLATE FOR AZURE DATABASE FOR MYSQL FLEXIBLE SERVER WITH HA & VNET
-// PROJECT: EduFlow LMS DB Migration (Tssnkur Technology Co Ltd)
-// TEST VERSION: ONLY 1 APP VM + 1 NIC
+// BICEP FULL TEMPLATE: Auto deploy VNet + Subnet + PrivateDNS + MySQL + 1 Test VM
+// PROJECT: EduFlow LMS DB Migration | TEST VERSION
 // ==============================================================================
-@description('部署资源所在的地理区域')
+@description('Azure Region')
 param location string = 'southeastasia'
-@description('MySQL 灵活服务器的数据库管理员用户名')
+
+@description('MySQL Flexible Server admin login name')
 param adminUsername string = 'tssnkuradmin'
-@description('数据库管理员密码，值将从 Azure Key Vault 安全传入')
+
+@description('MySQL admin password, pass from GitHub Secret')
 @secure()
-param adminPassword string = 'Tssnkur_Admin_Secure_2025_Password'
-@description('物理存储容量大小限制')
+param adminPassword string
+
+@description('MySQL storage size GB')
 param storageSizeGB int = 512
 
-// 定义统一打标的资源标签
+@description('Linux VM admin username')
+param vmAdminUsername string = 'azureuser'
+
+@description('SSH public key for VM login')
+param vmSshPublicKey string = 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC2...'
+
 var tags = {
-  Environment: 'Production'
+  Environment: 'Test'
   Project: 'EduFlowDBMigration'
-  Customer: 'Tssnkur Technology Co Ltd'
   CostCenter: 'Engineering'
-  Owner: 'sarah.lim@tssnkur.com'
-  ManagedBy: 'AzureMigrationConsulting'
 }
 
-// 引入原有的虚拟网络与专有子网资源 (通过 Existing 关联)
-resource vnet 'Microsoft.Network/virtualNetworks@2023-09-01' existing = {
+// --------------------------
+// 1. 自动部署 VNet
+// --------------------------
+resource vnet 'Microsoft.Network/virtualNetworks@2023-09-01' = {
   name: 'vnet-tssnkur-prod'
-  scope: resourceGroup()
+  location: location
+  tags: tags
+  properties: {
+    addressSpace: {
+      addressPrefixes: [
+        '10.1.0.0/16'
+      ]
+    }
+  }
 }
 
-resource dbSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' existing = {
+// --------------------------
+// 2. 两个子网
+// --------------------------
+// MySQL委托子网（必须delegated给MySQL Flexible Server）
+resource dbSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' = {
   parent: vnet
   name: 'snet-db-private-endpoint'
+  properties: {
+    addressPrefix: '10.1.0.0/24'
+    delegations: [
+      {
+        name: 'MySQLDelegation'
+        properties: {
+          serviceName: 'Microsoft.DBforMySQL/flexibleServers'
+        }
+      }
+    ]
+  }
 }
 
-// 创建私有 DNS 绑定区域，确保内网 FQDN 无缝解析
+// App VM子网
+resource appSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' = {
+  parent: vnet
+  name: 'snet-app-prod'
+  properties: {
+    addressPrefix: '10.1.1.0/24'
+  }
+}
+
+// --------------------------
+// 3. Private DNS Zone for MySQL + VNet Link
+// --------------------------
 resource privateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
   name: 'privatelink.mysql.database.azure.com'
   location: 'global'
   tags: tags
 }
 
-// 将私有 DNS 链接至生产虚拟网络
 resource privateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
   parent: privateDnsZone
   name: 'vnet-tssnkur-prod-link'
@@ -54,7 +93,9 @@ resource privateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLin
   }
 }
 
-// 核心数据库实例部署定义
+// --------------------------
+// 4. MySQL Flexible Server
+// --------------------------
 resource mysqlServer 'Microsoft.DBforMySQL/flexibleServers@2023-12-30-preview' = {
   name: 'tssnkur-mysql-prod'
   location: location
@@ -67,28 +108,20 @@ resource mysqlServer 'Microsoft.DBforMySQL/flexibleServers@2023-12-30-preview' =
     administratorLogin: adminUsername
     administratorLoginPassword: adminPassword
     version: '8.0.28'
-    
-    // 网络配置：完全启用私有网络集成，禁用外部公网
     network: {
       delegatedSubnetResourceId: dbSubnet.id
       privateDnsZoneResourceId: privateDnsZone.id
       publicNetworkAccess: 'Disabled'
     }
-    
-    // 存储规格配置与自动扩容
     storage: {
       storageSizeGB: storageSizeGB
-      iops: 20000                   // 供给 20,000 IOPS 保障吞吐
-      autoGrow: 'Enabled'           // 激活存储自动水位扩容
+      iops: 20000
+      autoGrow: 'Enabled'
     }
-    
-    // 高可用双区冗余配置
     highAvailability: {
       mode: 'ZoneRedundant'
       state: 'Enabled'
     }
-    
-    // 自动备份参数：最大级 35 天留存，开启异地冗余备份
     backup: {
       backupRetentionDays: 35
       geoRedundantBackup: 'Enabled'
@@ -96,18 +129,9 @@ resource mysqlServer 'Microsoft.DBforMySQL/flexibleServers@2023-12-30-preview' =
   }
 }
 
-// 输出建成实例的核心 FQDN 信息，以便应用容器环境调取
-output serverFullyQualifiedDomainName string = mysqlServer.properties.fullyQualifiedDomainName
-output serverResourceId string = mysqlServer.id
-
-// ==============================================================================
-// APPLICATION INFRASTRUCTURE PROVISIONING (IaaS VM - 1 Node app-web-01)
-// ==============================================================================
-resource appSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' existing = {
-  parent: vnet
-  name: 'snet-app-prod'
-}
-
+// --------------------------
+// 5. App VM 资源：可用性集 + 网卡 + 单台VM
+// --------------------------
 resource appAvailabilitySet 'Microsoft.Compute/availabilitySets@2023-09-01' = {
   name: 'as-tssnkur-app-prod'
   location: location
@@ -118,9 +142,9 @@ resource appAvailabilitySet 'Microsoft.Compute/availabilitySets@2023-09-01' = {
   }
 }
 
-// 单网卡：app-web-01-nic，静态IP 10.1.1.11
-resource appNics 'Microsoft.Network/networkInterfaces@2023-09-01' = [for i in range(0, 1): {
-  name: 'app-web-${padLeft(string(i + 1), 2, '0')}-nic'
+// 单张网卡，静态IP：10.1.1.11
+resource appNics 'Microsoft.Network/networkInterfaces@2023-09-01' = [for i in range(0,1): {
+  name: 'app-web-${padLeft(string(i+1),2,'0')}-nic'
   location: location
   tags: tags
   properties: {
@@ -132,16 +156,16 @@ resource appNics 'Microsoft.Network/networkInterfaces@2023-09-01' = [for i in ra
             id: appSubnet.id
           }
           privateIPAllocationMethod: 'Static'
-          privateIPAddress: '10.1.1.${string(i + 11)}'
+          privateIPAddress: '10.1.1.${string(i+11)}'
         }
       }
     ]
   }
 }]
 
-// 单台VM：app-web-01
-resource appVms 'Microsoft.Compute/virtualMachines@2023-09-01' = [for i in range(0, 1): {
-  name: 'app-web-${padLeft(string(i + 1), 2, '0')}'
+// 单台CentOS7.9 VM
+resource appVms 'Microsoft.Compute/virtualMachines@2023-09-01' = [for i in range(0,1): {
+  name: 'app-web-${padLeft(string(i+1),2,'0')}'
   location: location
   tags: tags
   properties: {
@@ -152,15 +176,15 @@ resource appVms 'Microsoft.Compute/virtualMachines@2023-09-01' = [for i in range
       vmSize: 'Standard_D4s_v3'
     }
     osProfile: {
-      computerName: 'app-web-${padLeft(string(i + 1), 2, '0')}'
-      adminUsername: 'azureuser'
+      computerName: 'app-web-${padLeft(string(i+1),2,'0')}'
+      adminUsername: vmAdminUsername
       linuxConfiguration: {
         disablePasswordAuthentication: true
         ssh: {
           publicKeys: [
             {
-              path: '/home/azureuser/.ssh/authorized_keys'
-              keyData: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC2...'
+              path: '/home/${vmAdminUsername}/.ssh/authorized_keys'
+              keyData: vmSshPublicKey
             }
           ]
         }
@@ -174,7 +198,7 @@ resource appVms 'Microsoft.Compute/virtualMachines@2023-09-01' = [for i in range
         version: 'latest'
       }
       osDisk: {
-        name: 'app-web-${padLeft(string(i + 1), 2, '0')}-osdisk'
+        name: 'app-web-${padLeft(string(i+1),2,'0')}-osdisk'
         createOption: 'FromImage'
         managedDisk: {
           storageAccountType: 'Standard_LRS'
@@ -191,3 +215,11 @@ resource appVms 'Microsoft.Compute/virtualMachines@2023-09-01' = [for i in range
     }
   }
 }]
+
+// --------------------------
+// Outputs
+// --------------------------
+output mysqlFQDN string = mysqlServer.properties.fullyQualifiedDomainName
+output mysqlAdminUser string = adminUsername
+output vmPrivateIP string = appNics[0].properties.ipConfigurations[0].properties.privateIPAddress
+output vnetName string = vnet.name
