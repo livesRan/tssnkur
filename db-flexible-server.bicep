@@ -7,9 +7,9 @@ param tags object = {
 }
 @description('MySQL admin username')
 param adminUsername string = 'mysqladmin'
-@description('MySQL admin password, pass value from pipeline')
+@description('MySQL admin password, TEST ONLY, hardcoded')
 @secure()
-param adminPassword string // 移除硬编码默认值，消除 secure-parameter-default lint警告
+param adminPassword string = 'Test@Passw0rd123'
 @description('MySQL storage size GB')
 param storageSizeGB int = 32
 @description('VNet address space')
@@ -141,7 +141,7 @@ resource appNic 'Microsoft.Network/networkInterfaces@2023-09-01' = {
   }
 }
 
-// Application VM ✅ 修改为 Standard_B2ms
+// Application VM
 resource appVm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
   name: 'app-web-01'
   location: location
