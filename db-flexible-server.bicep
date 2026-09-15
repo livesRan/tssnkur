@@ -1,25 +1,21 @@
 @description('Azure Region')
 param location string = 'southeastasia'
-
 @description('Resource tags')
 param tags object = {
   Environment: 'test'
   Project: 'tssnkur'
 }
-
 @description('MySQL admin username')
 param adminUsername string = 'mysqladmin'
-
 param adminPassword string = 'Test@Passw0rd123'
-
 @description('MySQL storage size GB')
 param storageSizeGB int = 32
-
 @description('VNet address space')
 param vnetAddressPrefix string = '10.0.0.0/16'
-
 @description('MySQL subnet prefix')
 param dbSubnetPrefix string = '10.0.1.0/24'
+// App subnet prefix
+param appSubnetPrefix string = '10.0.2.0/24'
 
 // Virtual Network
 resource vnet 'Microsoft.Network/virtualNetworks@2023-09-01' = {
@@ -54,8 +50,18 @@ resource dbSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' = {
   }
 }
 
+// App Subnet for application VM
+resource appSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' = {
+  name: 'snet-app-tssnkur-prod'
+  parent: vnet
+  properties: {
+    addressPrefix: appSubnetPrefix
+    privateEndpointNetworkPolicies: 'Disabled'
+    privateLinkServiceNetworkPolicies: 'Enabled'
+  }
+}
+
 // Private DNS Zone for MySQL Flexible Server
-// global资源，显式指定location: global，修复LocationRequired报错
 resource privateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = {
   name: 'privatelink.mysql.database.azure.com'
   location: 'global'
@@ -66,7 +72,7 @@ resource privateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = {
 resource privateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = {
   name: 'link-vnet-tssnkur-prod'
   parent: privateDnsZone
-  location: 'global' // ✅ 新增：vnet link 补充 location: global，解决LocationRequired
+  location: 'global'
   properties: {
     virtualNetwork: {
       id: vnet.id
@@ -75,7 +81,7 @@ resource privateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLin
   }
 }
 
-// MySQL Flexible Server, southeastasia supported version: 8.0.34
+// MySQL Flexible Server
 resource mysqlServer 'Microsoft.DBforMySQL/flexibleServers@2023-12-30' = {
   name: 'tssnkur-mysql-prod'
   location: location
@@ -87,7 +93,6 @@ resource mysqlServer 'Microsoft.DBforMySQL/flexibleServers@2023-12-30' = {
   properties: {
     administratorLogin: adminUsername
     administratorLoginPassword: adminPassword
-    //version: '8.0.34'
     network: {
       delegatedSubnetResourceId: dbSubnet.id
       privateDnsZoneResourceId: privateDnsZone.id
@@ -111,8 +116,81 @@ resource mysqlServer 'Microsoft.DBforMySQL/flexibleServers@2023-12-30' = {
   ]
 }
 
+// Network Interface for app VM
+resource appNic 'Microsoft.Network/networkInterfaces@2023-09-01' = {
+  name: 'app-web-01-nic'
+  location: location
+  tags: tags
+  properties: {
+    ipConfigurations: [
+      {
+        name: 'ipconfig1'
+        properties: {
+          subnet: {
+            id: appSubnet.id
+          }
+          privateIPAllocationMethod: 'Static'
+          privateIPAddress: '10.0.2.10'
+        }
+      }
+    ]
+  }
+}
+
+// Application VM
+resource appVm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
+  name: 'app-web-01'
+  location: location
+  tags: tags
+  properties: {
+    hardwareProfile: {
+      vmSize: 'Standard_B1s'
+    }
+    osProfile: {
+      computerName: 'app-web-01'
+      adminUsername: 'azureuser'
+      linuxConfiguration: {
+        disablePasswordAuthentication: true
+        ssh: {
+          publicKeys: [
+            {
+              path: '/home/azureuser/.ssh/authorized_keys'
+              keyData: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDa9HR4czYOoBhbHUInoAnvVQSEeyOTreEaOMXKFpG2vkIeWmzZYl16G4Z8U6LweHXbjyGrcJnRy4svnbpXmKWm4YNV0e5pSNoUYBDbsg+L33JWf+v+E6eZgV1xDvGo30DSsa0X6i/WQSvguswstcvo7iOoex2ZYzCyCL8kPMCcaPQ5LUml6679lS0+Wc5vj8tFTEM424i14YymOEZr7dCrFlNj65SnM0uGGUitp78CFlF/068ChgmP5Jaw70zd7ybk03yta/ZJYAWK4ACtUwqVt5sZEldc7GHLaykMS8Fm9VRVB2dUaAmQSlYjozqTCnop6E6mtoJcqhyYC3JuQ9F7 songgla@DESKTOP-H5S0BKA'
+            }
+          ]
+        }
+      }
+    }
+    storageProfile: {
+      imageReference: {
+        publisher: 'OpenLogic'
+        offer: 'CentOS'
+        sku: '7_9-gen2'
+        version: 'latest'
+      }
+      osDisk: {
+        name: 'app-web-01-osdisk'
+        createOption: 'FromImage'
+        managedDisk: {
+          storageAccountType: 'Standard_LRS'
+        }
+        diskSizeGB: 100
+      }
+    }
+    networkProfile: {
+      networkInterfaces: [
+        {
+          id: appNic.id
+        }
+      ]
+    }
+  }
+}
+
 // Outputs
 output mysqlFqdn string = mysqlServer.properties.fullyQualifiedDomainName
 output mysqlAdminUser string = adminUsername
 output vnetId string = vnet.id
 output dbSubnetId string = dbSubnet.id
+output appVmPrivateIP string = appNic.properties.ipConfigurations[0].properties.privateIPAddress
+output appVmResourceId string = appVm.id
