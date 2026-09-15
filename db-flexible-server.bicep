@@ -87,7 +87,7 @@ resource mysqlServer 'Microsoft.DBforMySQL/flexibleServers@2023-12-30' = {
   properties: {
     administratorLogin: adminUsername
     administratorLoginPassword: adminPassword
-    version: '8.0.34'
+    //version: '8.0.34'
     network: {
       delegatedSubnetResourceId: dbSubnet.id
       privateDnsZoneResourceId: privateDnsZone.id
