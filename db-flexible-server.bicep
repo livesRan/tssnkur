@@ -9,7 +9,7 @@ param location string = 'southeastasia'
 param adminUsername string = 'tssnkuradmin'
 @description('数据库管理员密码，值将从 Azure Key Vault 安全传入')
 @secure()
-param adminPassword string
+param adminPassword string = 'Tssnkur_Admin_Secure_2025_Password'
 @description('物理存储容量大小限制')
 param storageSizeGB int = 512
 
