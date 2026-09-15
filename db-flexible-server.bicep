@@ -2,33 +2,15 @@
 // BICEP TEMPLATE FOR AZURE DATABASE FOR MYSQL FLEXIBLE SERVER WITH HA & VNET
 // PROJECT: EduFlow LMS DB Migration (Tssnkur Technology Co Ltd)
 // ==============================================================================
-
 @description('部署资源所在的地理区域')
 param location string = 'southeastasia'
-
-@description('环境标识名称')
-@allowed([
-  'dev'
-  'staging'
-  'prod'
-])
-param environment string = 'prod'
-
 @description('MySQL 灵活服务器的数据库管理员用户名')
 param adminUsername string = 'tssnkuradmin'
-
 @description('数据库管理员密码，值将从 Azure Key Vault 安全传入')
 @secure()
-param adminPassword string = 'Tssnkur_Admin_Secure_2025_Password'
-
+param adminPassword string
 @description('物理存储容量大小限制')
 param storageSizeGB int = 512
-
-@description('主节点可用区位置')
-param primaryAvailabilityZone string = '1'
-
-@description('高可用备节点可用区位置')
-param standbyAvailabilityZone string = '2'
 
 // 定义统一打标的资源标签
 var tags = {
@@ -117,11 +99,9 @@ resource mysqlServer 'Microsoft.DBforMySQL/flexibleServers@2023-12-30-preview' =
 output serverFullyQualifiedDomainName string = mysqlServer.properties.fullyQualifiedDomainName
 output serverResourceId string = mysqlServer.id
 
-
 // ==============================================================================
 // APPLICATION INFRASTRUCTURE PROVISIONING (IaaS VM - 12 Nodes app-web-01 to 12)
 // ==============================================================================
-
 resource appSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' existing = {
   parent: vnet
   name: 'snet-app-prod'
@@ -138,7 +118,7 @@ resource appAvailabilitySet 'Microsoft.Compute/availabilitySets@2023-09-01' = {
 }
 
 resource appNics 'Microsoft.Network/networkInterfaces@2023-09-01' = [for i in range(0, 12): {
-  name: 'app-web-${format('%02d', i + 1)}-nic'
+  name: 'app-web-${padLeft(string(i + 1), 2, '0')}-nic'
   location: location
   tags: tags
   properties: {
@@ -150,7 +130,7 @@ resource appNics 'Microsoft.Network/networkInterfaces@2023-09-01' = [for i in ra
             id: appSubnet.id
           }
           privateIPAllocationMethod: 'Static'
-          privateIPAddress: '10.1.1.${i + 11}'
+          privateIPAddress: '10.1.1.${string(i + 11)}'
         }
       }
     ]
@@ -158,12 +138,9 @@ resource appNics 'Microsoft.Network/networkInterfaces@2023-09-01' = [for i in ra
 }]
 
 resource appVms 'Microsoft.Compute/virtualMachines@2023-09-01' = [for i in range(0, 12): {
-  name: 'app-web-${format('%02d', i + 1)}'
+  name: 'app-web-${padLeft(string(i + 1), 2, '0')}'
   location: location
   tags: tags
-  sku: {
-    name: 'Standard_D4s_v3'
-  }
   properties: {
     availabilitySet: {
       id: appAvailabilitySet.id
@@ -172,7 +149,7 @@ resource appVms 'Microsoft.Compute/virtualMachines@2023-09-01' = [for i in range
       vmSize: 'Standard_D4s_v3'
     }
     osProfile: {
-      computerName: 'app-web-${format('%02d', i + 1)}'
+      computerName: 'app-web-${padLeft(string(i + 1), 2, '0')}'
       adminUsername: 'azureuser'
       linuxConfiguration: {
         disablePasswordAuthentication: true
@@ -194,7 +171,7 @@ resource appVms 'Microsoft.Compute/virtualMachines@2023-09-01' = [for i in range
         version: 'latest'
       }
       osDisk: {
-        name: 'app-web-${format('%02d', i + 1)}-osdisk'
+        name: 'app-web-${padLeft(string(i + 1), 2, '0')}-osdisk'
         createOption: 'FromImage'
         managedDisk: {
           storageAccountType: 'Standard_LRS'
