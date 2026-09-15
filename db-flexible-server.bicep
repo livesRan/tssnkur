@@ -1,6 +1,7 @@
 // ==============================================================================
 // BICEP TEST TEMPLATE: Auto deploy VNet + Subnet + PrivateDNS + MySQL + 1 Test VM
-// !!! TEST ONLY, Password hardcoded, DO NOT USE IN PRODUCTION / COMMIT TO GIT !!!
+// !!! TEST ONLY, Password hardcoded, DO NOT COMMIT TO GIT / PRODUCTION !!!
+// Fixed: MySQL api-version + AvailabilitySet Aligned SKU
 // ==============================================================================
 @description('Azure Region')
 param location string = 'southeastasia'
@@ -95,9 +96,9 @@ resource privateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLin
 }
 
 // --------------------------
-// 4. MySQL Flexible Server
+// 4. MySQL Flexible Server (修复API版本：2023-12-30 去掉-preview)
 // --------------------------
-resource mysqlServer 'Microsoft.DBforMySQL/flexibleServers@2023-12-30-preview' = {
+resource mysqlServer 'Microsoft.DBforMySQL/flexibleServers@2023-12-30' = {
   name: 'tssnkur-mysql-prod'
   location: location
   tags: tags
@@ -132,12 +133,15 @@ resource mysqlServer 'Microsoft.DBforMySQL/flexibleServers@2023-12-30-preview' =
 }
 
 // --------------------------
-// 5. App VM 资源：可用性集 + 网卡 + 单台VM
+// 5. App VM 资源：可用性集【增加Aligned SKU修复托管磁盘报错】+ 网卡 + 单台VM
 // --------------------------
 resource appAvailabilitySet 'Microsoft.Compute/availabilitySets@2023-09-01' = {
   name: 'as-tssnkur-app-prod'
   location: location
   tags: tags
+  sku: {
+    name: 'Aligned' // 关键修复：托管磁盘VM必须Aligned
+  }
   properties: {
     platformUpdateDomainCount: 3
     platformFaultDomainCount: 2
