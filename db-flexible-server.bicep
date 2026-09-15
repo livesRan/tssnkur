@@ -1,7 +1,7 @@
 // ==============================================================================
-// BICEP TEST TEMPLATE: Auto deploy VNet + Subnet + PrivateDNS + MySQL + 1 Test VM
+// BICEP TEST TEMPLATE: VNet + Subnet + PrivateDNS + MySQL + 1 Test VM
 // !!! TEST ONLY, Password hardcoded, DO NOT COMMIT TO GIT / PRODUCTION !!!
-// Fixed: MySQL api-version + AvailabilitySet Aligned SKU
+// Fixed: MySQL SKU + Remove invalid SSH key, use VM password login
 // ==============================================================================
 @description('Azure Region')
 param location string = 'southeastasia'
@@ -14,13 +14,14 @@ param adminUsername string = 'tssnkuradmin'
 param adminPassword string = 'Test@123456'
 
 @description('MySQL storage size GB')
-param storageSizeGB int = 512
+param storageSizeGB int = 32
 
 @description('Linux VM admin username')
 param vmAdminUsername string = 'azureuser'
 
-@description('SSH public key for VM login, TEST DEFAULT')
-param vmSshPublicKey string = 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDAfakeKeyForTestOnly'
+@description('VM password for test')
+@secure()
+param vmAdminPassword string = 'VmTest@123456'
 
 var tags = {
   Environment: 'Test'
@@ -29,7 +30,7 @@ var tags = {
 }
 
 // --------------------------
-// 1. 自动部署 VNet
+// 1. VNet
 // --------------------------
 resource vnet 'Microsoft.Network/virtualNetworks@2023-09-01' = {
   name: 'vnet-tssnkur-prod'
@@ -45,9 +46,8 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-09-01' = {
 }
 
 // --------------------------
-// 2. 两个子网
+// 2. Subnets
 // --------------------------
-// MySQL委托子网（必须delegated给MySQL Flexible Server）
 resource dbSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' = {
   parent: vnet
   name: 'snet-db-private-endpoint'
@@ -64,7 +64,6 @@ resource dbSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' = {
   }
 }
 
-// App VM子网
 resource appSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' = {
   parent: vnet
   name: 'snet-app-prod'
@@ -92,19 +91,18 @@ resource privateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLin
       id: vnet.id
     }
   }
-  dependsOn: [vnet]
 }
 
 // --------------------------
-// 4. MySQL Flexible Server (修复API版本：2023-12-30 去掉-preview)
+// 4. MySQL Flexible Server (Fixed SKU: GeneralPurpose + B1ms)
 // --------------------------
 resource mysqlServer 'Microsoft.DBforMySQL/flexibleServers@2023-12-30' = {
   name: 'tssnkur-mysql-prod'
   location: location
   tags: tags
   sku: {
-    name: 'Standard_D8ds_v4'
-    tier: 'BusinessCritical'
+    name: 'Standard_B1ms'
+    tier: 'GeneralPurpose'
   }
   properties: {
     administratorLogin: adminUsername
@@ -117,30 +115,28 @@ resource mysqlServer 'Microsoft.DBforMySQL/flexibleServers@2023-12-30' = {
     }
     storage: {
       storageSizeGB: storageSizeGB
-      iops: 20000
+      iops: 360
       autoGrow: 'Enabled'
     }
     highAvailability: {
-      mode: 'ZoneRedundant'
-      state: 'Enabled'
+      mode: 'Disabled'
     }
     backup: {
-      backupRetentionDays: 35
-      geoRedundantBackup: 'Enabled'
+      backupRetentionDays: 7
+      geoRedundantBackup: 'Disabled'
     }
   }
-  dependsOn: [dbSubnet, privateDnsZoneLink]
 }
 
 // --------------------------
-// 5. App VM 资源：可用性集【增加Aligned SKU修复托管磁盘报错】+ 网卡 + 单台VM
+// 5. Availability Set + NIC + VM (Use password login, remove invalid SSH key)
 // --------------------------
 resource appAvailabilitySet 'Microsoft.Compute/availabilitySets@2023-09-01' = {
   name: 'as-tssnkur-app-prod'
   location: location
   tags: tags
   sku: {
-    name: 'Aligned' // 关键修复：托管磁盘VM必须Aligned
+    name: 'Aligned'
   }
   properties: {
     platformUpdateDomainCount: 3
@@ -148,7 +144,6 @@ resource appAvailabilitySet 'Microsoft.Compute/availabilitySets@2023-09-01' = {
   }
 }
 
-// 单张网卡，静态IP：10.1.1.11
 resource appNics 'Microsoft.Network/networkInterfaces@2023-09-01' = [for i in range(0,1): {
   name: 'app-web-${padLeft(string(i+1),2,'0')}-nic'
   location: location
@@ -167,10 +162,8 @@ resource appNics 'Microsoft.Network/networkInterfaces@2023-09-01' = [for i in ra
       }
     ]
   }
-  dependsOn: [appSubnet]
 }]
 
-// 单台CentOS7.9 VM
 resource appVms 'Microsoft.Compute/virtualMachines@2023-09-01' = [for i in range(0,1): {
   name: 'app-web-${padLeft(string(i+1),2,'0')}'
   location: location
@@ -180,21 +173,14 @@ resource appVms 'Microsoft.Compute/virtualMachines@2023-09-01' = [for i in range
       id: appAvailabilitySet.id
     }
     hardwareProfile: {
-      vmSize: 'Standard_D4s_v3'
+      vmSize: 'Standard_B1s'
     }
     osProfile: {
       computerName: 'app-web-${padLeft(string(i+1),2,'0')}'
       adminUsername: vmAdminUsername
+      adminPassword: vmAdminPassword // 使用密码登录，不再需要SSH公钥
       linuxConfiguration: {
-        disablePasswordAuthentication: true
-        ssh: {
-          publicKeys: [
-            {
-              path: '/home/${vmAdminUsername}/.ssh/authorized_keys'
-              keyData: vmSshPublicKey
-            }
-          ]
-        }
+        disablePasswordAuthentication: false // 开启密码登录测试
       }
     }
     storageProfile: {
@@ -210,7 +196,7 @@ resource appVms 'Microsoft.Compute/virtualMachines@2023-09-01' = [for i in range
         managedDisk: {
           storageAccountType: 'Standard_LRS'
         }
-        diskSizeGB: 100
+        diskSizeGB: 30
       }
     }
     networkProfile: {
@@ -221,12 +207,8 @@ resource appVms 'Microsoft.Compute/virtualMachines@2023-09-01' = [for i in range
       ]
     }
   }
-  dependsOn: [appNics]
 }]
 
-// --------------------------
-// Outputs
-// --------------------------
 output mysqlFQDN string = mysqlServer.properties.fullyQualifiedDomainName
 output mysqlAdminUser string = adminUsername
 output vmPrivateIP string = appNics[0].properties.ipConfigurations[0].properties.privateIPAddress
