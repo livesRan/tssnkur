@@ -1,38 +1,29 @@
-// ==============================================================================
-// BICEP TEST TEMPLATE: VNet + Subnet + PrivateDNS + MySQL + 1 Test VM
-// !!! TEST ONLY, Password hardcoded, DO NOT COMMIT TO GIT / PRODUCTION !!!
-// Fix1: dependsOn for MySQL to wait privateDnsZoneLink
-// Fix2: MySQL version changed from 8.0.28 to 8.0
-// ==============================================================================
 @description('Azure Region')
 param location string = 'southeastasia'
 
-@description('MySQL Flexible Server admin login name')
-param adminUsername string = 'tssnkuradmin'
+@description('Resource tags')
+param tags object = {
+  Environment: 'prod'
+  Project: 'tssnkur'
+}
 
-@description('MySQL admin password, FOR TEST ONLY')
+@description('MySQL admin username')
+param adminUsername string = 'mysqladmin'
+
 @secure()
-param adminPassword string = 'Test@123456'
+@description('MySQL admin password')
+param adminPassword string
 
 @description('MySQL storage size GB')
 param storageSizeGB int = 32
 
-@description('Linux VM admin username')
-param vmAdminUsername string = 'azureuser'
+@description('VNet address space')
+param vnetAddressPrefix string = '10.0.0.0/16'
 
-@description('VM password for test')
-@secure()
-param vmAdminPassword string = 'VmTest@123456'
+@description('MySQL subnet prefix')
+param dbSubnetPrefix string = '10.0.1.0/24'
 
-var tags = {
-  Environment: 'Test'
-  Project: 'EduFlowDBMigration'
-  CostCenter: 'Engineering'
-}
-
-// --------------------------
-// 1. VNet
-// --------------------------
+// Virtual Network
 resource vnet 'Microsoft.Network/virtualNetworks@2023-09-01' = {
   name: 'vnet-tssnkur-prod'
   location: location
@@ -40,75 +31,63 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-09-01' = {
   properties: {
     addressSpace: {
       addressPrefixes: [
-        '10.1.0.0/16'
+        vnetAddressPrefix
       ]
     }
   }
 }
 
-// --------------------------
-// 2. Subnets
-// --------------------------
+// Delegate subnet for MySQL Flexible Server
 resource dbSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' = {
+  name: 'snet-db-tssnkur-prod'
   parent: vnet
-  name: 'snet-db-private-endpoint'
   properties: {
-    addressPrefix: '10.1.0.0/24'
+    addressPrefix: dbSubnetPrefix
     delegations: [
       {
-        name: 'MySQLDelegation'
+        name: 'mysql-delegation'
         properties: {
           serviceName: 'Microsoft.DBforMySQL/flexibleServers'
         }
       }
     ]
+    privateEndpointNetworkPolicies: 'Disabled'
+    privateLinkServiceNetworkPolicies: 'Enabled'
   }
 }
 
-resource appSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' = {
-  parent: vnet
-  name: 'snet-app-prod'
-  properties: {
-    addressPrefix: '10.1.1.0/24'
-  }
-}
-
-// --------------------------
-// 3. Private DNS Zone for MySQL + VNet Link
-// --------------------------
-resource privateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
+// Private DNS Zone for MySQL Flexible Server
+resource privateDnsZone 'Microsoft.Network/privateDnsZones@2023-09-01' = {
   name: 'privatelink.mysql.database.azure.com'
   location: 'global'
   tags: tags
 }
 
-resource privateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
+// Private DNS Zone VNet Link
+resource privateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2023-09-01' = {
+  name: 'link-vnet-tssnkur-prod'
   parent: privateDnsZone
-  name: 'vnet-tssnkur-prod-link'
-  location: 'global'
   properties: {
-    registrationEnabled: false
     virtualNetwork: {
       id: vnet.id
     }
+    registrationEnabled: false
   }
 }
 
-// --------------------------
-// 4. MySQL Flexible Server
-// --------------------------
+// MySQL Flexible Server, southeastasia supported version: 8.0.34
 resource mysqlServer 'Microsoft.DBforMySQL/flexibleServers@2023-12-30' = {
   name: 'tssnkur-mysql-prod'
   location: location
   tags: tags
   sku: {
     name: 'Standard_B1ms'
-    tier: 'GeneralPurpose'
+    tier: 'Burstable'
   }
   properties: {
     administratorLogin: adminUsername
     administratorLoginPassword: adminPassword
-    version: '8.0' // ✅ Fixed: only major version allowed
+    version: '8.0.34'
     network: {
       delegatedSubnetResourceId: dbSubnet.id
       privateDnsZoneResourceId: privateDnsZone.id
@@ -132,88 +111,8 @@ resource mysqlServer 'Microsoft.DBforMySQL/flexibleServers@2023-12-30' = {
   ]
 }
 
-// --------------------------
-// 5. Availability Set + NIC + VM (SKU: Standard_D2s_v5)
-// --------------------------
-resource appAvailabilitySet 'Microsoft.Compute/availabilitySets@2023-09-01' = {
-  name: 'as-tssnkur-app-prod'
-  location: location
-  tags: tags
-  sku: {
-    name: 'Aligned'
-  }
-  properties: {
-    platformUpdateDomainCount: 3
-    platformFaultDomainCount: 2
-  }
-}
-
-resource appNics 'Microsoft.Network/networkInterfaces@2023-09-01' = [for i in range(0,1): {
-  name: 'app-web-${padLeft(string(i+1),2,'0')}-nic'
-  location: location
-  tags: tags
-  properties: {
-    ipConfigurations: [
-      {
-        name: 'ipconfig1'
-        properties: {
-          subnet: {
-            id: appSubnet.id
-          }
-          privateIPAllocationMethod: 'Static'
-          privateIPAddress: '10.1.1.${string(i+11)}'
-        }
-      }
-    ]
-  }
-}]
-
-resource appVms 'Microsoft.Compute/virtualMachines@2023-09-01' = [for i in range(0,1): {
-  name: 'app-web-${padLeft(string(i+1),2,'0')}'
-  location: location
-  tags: tags
-  properties: {
-    availabilitySet: {
-      id: appAvailabilitySet.id
-    }
-    hardwareProfile: {
-      vmSize: 'Standard_D2s_v5'
-    }
-    osProfile: {
-      computerName: 'app-web-${padLeft(string(i+1),2,'0')}'
-      adminUsername: vmAdminUsername
-      adminPassword: vmAdminPassword
-      linuxConfiguration: {
-        disablePasswordAuthentication: false
-      }
-    }
-    storageProfile: {
-      imageReference: {
-        publisher: 'OpenLogic'
-        offer: 'CentOS'
-        sku: '7_9-gen2'
-        version: 'latest'
-      }
-      osDisk: {
-        name: 'app-web-${padLeft(string(i+1),2,'0')}-osdisk'
-        createOption: 'FromImage'
-        managedDisk: {
-          storageAccountType: 'Standard_LRS'
-        }
-        diskSizeGB: 30
-      }
-    }
-    networkProfile: {
-      networkInterfaces: [
-        {
-          id: appNics[i].id
-        }
-      ]
-    }
-  }
-}]
-
-output mysqlFQDN string = mysqlServer.properties.fullyQualifiedDomainName
+// Outputs
+output mysqlFqdn string = mysqlServer.properties.fullyQualifiedDomainName
 output mysqlAdminUser string = adminUsername
-output vmPrivateIP string = appNics[0].properties.ipConfigurations[0].properties.privateIPAddress
-output vnetName string = vnet.name
+output vnetId string = vnet.id
+output dbSubnetId string = dbSubnet.id
