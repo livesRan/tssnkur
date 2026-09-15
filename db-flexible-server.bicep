@@ -3,7 +3,7 @@ param location string = 'southeastasia'
 
 @description('Resource tags')
 param tags object = {
-  Environment: 'prod'
+  Environment: 'test'
   Project: 'tssnkur'
 }
 
@@ -11,8 +11,8 @@ param tags object = {
 param adminUsername string = 'mysqladmin'
 
 @secure()
-@description('MySQL admin password')
-param adminPassword string
+@description('MySQL admin password, hardcoded for TEST ONLY, never use in production')
+param adminPassword string = 'Test@Passw0rd123'
 
 @description('MySQL storage size GB')
 param storageSizeGB int = 32
