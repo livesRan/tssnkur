@@ -26,6 +26,9 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Force set target subscription
+        run: az account set --subscription 3bbc5821-b30f-476a-81c2-795ae462405a
+
       - name: Deploy Bicep template
         run: |
           az deployment group create \
