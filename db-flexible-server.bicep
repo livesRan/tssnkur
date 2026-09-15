@@ -1,7 +1,8 @@
 // ==============================================================================
 // BICEP TEST TEMPLATE: VNet + Subnet + PrivateDNS + MySQL + 1 Test VM
 // !!! TEST ONLY, Password hardcoded, DO NOT COMMIT TO GIT / PRODUCTION !!!
-// Fix: add dependsOn for MySQL to wait privateDnsZoneLink
+// Fix1: dependsOn for MySQL to wait privateDnsZoneLink
+// Fix2: MySQL version changed from 8.0.28 to 8.0
 // ==============================================================================
 @description('Azure Region')
 param location string = 'southeastasia'
@@ -107,7 +108,7 @@ resource mysqlServer 'Microsoft.DBforMySQL/flexibleServers@2023-12-30' = {
   properties: {
     administratorLogin: adminUsername
     administratorLoginPassword: adminPassword
-    version: '8.0.28'
+    version: '8.0' // ✅ Fixed: only major version allowed
     network: {
       delegatedSubnetResourceId: dbSubnet.id
       privateDnsZoneResourceId: privateDnsZone.id
@@ -127,7 +128,7 @@ resource mysqlServer 'Microsoft.DBforMySQL/flexibleServers@2023-12-30' = {
     }
   }
   dependsOn: [
-    privateDnsZoneLink // 关键：等待DNS VNet链接完成再创建MySQL
+    privateDnsZoneLink
   ]
 }
 
