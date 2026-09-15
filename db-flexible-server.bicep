@@ -7,6 +7,8 @@ param tags object = {
 }
 @description('MySQL admin username')
 param adminUsername string = 'mysqladmin'
+@description('MySQL admin password')
+@secure()
 param adminPassword string = 'Test@Passw0rd123'
 @description('MySQL storage size GB')
 param storageSizeGB int = 32
@@ -14,8 +16,10 @@ param storageSizeGB int = 32
 param vnetAddressPrefix string = '10.0.0.0/16'
 @description('MySQL subnet prefix')
 param dbSubnetPrefix string = '10.0.1.0/24'
-// App subnet prefix
+@description('App subnet prefix')
 param appSubnetPrefix string = '10.0.2.0/24'
+@description('VM admin username')
+param vmAdminUser string = 'azureuser'
 
 // Virtual Network
 resource vnet 'Microsoft.Network/virtualNetworks@2023-09-01' = {
@@ -137,25 +141,25 @@ resource appNic 'Microsoft.Network/networkInterfaces@2023-09-01' = {
   }
 }
 
-// Application VM
+// Application VM ✅ 改成 Standard_B1ms
 resource appVm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
   name: 'app-web-01'
   location: location
   tags: tags
   properties: {
     hardwareProfile: {
-      vmSize: 'Standard_B1s'
+      vmSize: 'Standard_B1ms'
     }
     osProfile: {
       computerName: 'app-web-01'
-      adminUsername: 'azureuser'
+      adminUsername: vmAdminUser
       linuxConfiguration: {
         disablePasswordAuthentication: true
         ssh: {
           publicKeys: [
             {
               path: '/home/azureuser/.ssh/authorized_keys'
-              keyData: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDa9HR4czYOoBhbHUInoAnvVQSEeyOTreEaOMXKFpG2vkIeWmzZYl16G4Z8U6LweHXbjyGrcJnRy4svnbpXmKWm4YNV0e5pSNoUYBDbsg+L33JWf+v+E6eZgV1xDvGo30DSsa0X6i/WQSvguswstcvo7iOoex2ZYzCyCL8kPMCcaPQ5LUml6679lS0+Wc5vj8tFTEM424i14YymOEZr7dCrFlNj65SnM0uGGUitp78CFlF/068ChgmP5Jaw70zd7ybk03yta/ZJYAWK4ACtUwqVt5sZEldc7GHLaykMS8Fm9VRVB2dUaAmQSlYjozqTCnop6E6mtoJcqhyYC3JuQ9F7 songgla@DESKTOP-H5S0BKA'
+              keyData: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC2...'
             }
           ]
         }
