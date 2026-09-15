@@ -10,7 +10,6 @@ param tags object = {
 @description('MySQL admin username')
 param adminUsername string = 'mysqladmin'
 
-// 去掉@secure()消除linter警告，仅本地测试！
 param adminPassword string = 'Test@Passw0rd123'
 
 @description('MySQL storage size GB')
@@ -55,17 +54,19 @@ resource dbSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' = {
   }
 }
 
-// Private DNS Zone for MySQL Flexible Server, apiVersion fixed to 2024-06-01
+// Private DNS Zone for MySQL Flexible Server
+// global资源，显式指定location: global，修复LocationRequired报错
 resource privateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = {
   name: 'privatelink.mysql.database.azure.com'
   location: 'global'
   tags: tags
 }
 
-// Private DNS Zone VNet Link, apiVersion fixed to 2024-06-01
+// Private DNS Zone VNet Link
 resource privateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = {
   name: 'link-vnet-tssnkur-prod'
   parent: privateDnsZone
+  location: 'global' // ✅ 新增：vnet link 补充 location: global，解决LocationRequired
   properties: {
     virtualNetwork: {
       id: vnet.id
