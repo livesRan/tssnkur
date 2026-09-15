@@ -141,14 +141,14 @@ resource appNic 'Microsoft.Network/networkInterfaces@2023-09-01' = {
   }
 }
 
-// Application VM
+// Application VM 【修改为 Standard_D2s_v3】
 resource appVm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
   name: 'app-web-01'
   location: location
   tags: tags
   properties: {
     hardwareProfile: {
-      vmSize: 'Standard_B2ms'
+      vmSize: 'Standard_D2s_v3'
     }
     osProfile: {
       computerName: 'app-web-01'
@@ -159,7 +159,7 @@ resource appVm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
           publicKeys: [
             {
               path: '/home/azureuser/.ssh/authorized_keys'
-              keyData: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC2...'
+              keyData: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDa9HR4czYOoBhbHUInoAnvVQSEeyOTreEaOMXKFpG2vkIeWmzZYl16G4Z8U6LweHXbjyGrcJnRy4svnbpXmKWm4YNV0e5pSNoUYBDbsg+L33JWf+v+E6eZgV1xDvGo30DSsa0X6i/WQSvguswstcvo7iOoex2ZYzCyCL8kPMCcaPQ5LUml6679lS0+Wc5vj8tFTEM424i14YymOEZr7dCrFlNj65SnM0uGGUitp78CFlF/068ChgmP5Jaw70zd7ybk03yta/ZJYAWK4ACtUwqVt5sZEldc7GHLaykMS8Fm9VRVB2dUaAmQSlYjozqTCnop6E6mtoJcqhyYC3JuQ9F7 songgla@DESKTOP-H5S0BK'
             }
           ]
         }
