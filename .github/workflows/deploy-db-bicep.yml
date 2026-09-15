@@ -23,8 +23,14 @@ jobs:
         with:
           creds: ${{ secrets.TSSNKUR_SECRET }}
 
-      - name: Validate current Azure subscription
-        run: az account show --query id -o tsv
+      - name: List accessible Azure subscriptions
+        run: az account list --query "[].id" -o tsv
+
+      - name: Create Resource Group if not exists
+        run: |
+          az group create \
+            --name rg-tssnkur-prod \
+            --location "East Asia"
 
       - name: Deploy Bicep template
         run: |
