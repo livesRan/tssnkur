@@ -1,0 +1,33 @@
+name: Deploy MySQL Bicep
+run-name: Deploy MySQL Flexible Server (Bicep)
+on:
+  workflow_dispatch: # 手动触发
+  push:
+    branches: [ main ]
+    paths:
+      - 'db-flexible-server.bicep'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy-bicep:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy Bicep template
+        run: |
+          az deployment group create \
+            --resource-group rg-tssnkur-prod \
+            --template-file ./db-flexible-server.bicep
