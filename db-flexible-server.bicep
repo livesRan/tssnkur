@@ -1,6 +1,6 @@
 // ==============================================================================
-// BICEP FULL TEMPLATE: Auto deploy VNet + Subnet + PrivateDNS + MySQL + 1 Test VM
-// PROJECT: EduFlow LMS DB Migration | TEST VERSION
+// BICEP TEST TEMPLATE: Auto deploy VNet + Subnet + PrivateDNS + MySQL + 1 Test VM
+// !!! TEST ONLY, Password hardcoded, DO NOT USE IN PRODUCTION / COMMIT TO GIT !!!
 // ==============================================================================
 @description('Azure Region')
 param location string = 'southeastasia'
@@ -8,9 +8,9 @@ param location string = 'southeastasia'
 @description('MySQL Flexible Server admin login name')
 param adminUsername string = 'tssnkuradmin'
 
-@description('MySQL admin password, pass from GitHub Secret')
+@description('MySQL admin password, FOR TEST ONLY')
 @secure()
-param adminPassword string
+param adminPassword string = 'Test@123456'
 
 @description('MySQL storage size GB')
 param storageSizeGB int = 512
@@ -18,8 +18,8 @@ param storageSizeGB int = 512
 @description('Linux VM admin username')
 param vmAdminUsername string = 'azureuser'
 
-@description('SSH public key for VM login')
-param vmSshPublicKey string = 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC2...'
+@description('SSH public key for VM login, TEST DEFAULT')
+param vmSshPublicKey string = 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDAfakeKeyForTestOnly'
 
 var tags = {
   Environment: 'Test'
@@ -91,6 +91,7 @@ resource privateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLin
       id: vnet.id
     }
   }
+  dependsOn: [vnet]
 }
 
 // --------------------------
@@ -127,6 +128,7 @@ resource mysqlServer 'Microsoft.DBforMySQL/flexibleServers@2023-12-30-preview' =
       geoRedundantBackup: 'Enabled'
     }
   }
+  dependsOn: [dbSubnet, privateDnsZoneLink]
 }
 
 // --------------------------
@@ -161,6 +163,7 @@ resource appNics 'Microsoft.Network/networkInterfaces@2023-09-01' = [for i in ra
       }
     ]
   }
+  dependsOn: [appSubnet]
 }]
 
 // 单台CentOS7.9 VM
@@ -214,6 +217,7 @@ resource appVms 'Microsoft.Compute/virtualMachines@2023-09-01' = [for i in range
       ]
     }
   }
+  dependsOn: [appNics]
 }]
 
 // --------------------------
