@@ -1,7 +1,7 @@
 // ==============================================================================
 // BICEP TEST TEMPLATE: VNet + Subnet + PrivateDNS + MySQL + 1 Test VM
 // !!! TEST ONLY, Password hardcoded, DO NOT COMMIT TO GIT / PRODUCTION !!!
-// Fixed: MySQL SKU + Remove invalid SSH key, use VM password login
+// Fixed: VM SKU changed to Standard_B1ms for southeastasia capacity
 // ==============================================================================
 @description('Azure Region')
 param location string = 'southeastasia'
@@ -94,7 +94,7 @@ resource privateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLin
 }
 
 // --------------------------
-// 4. MySQL Flexible Server (Fixed SKU: GeneralPurpose + B1ms)
+// 4. MySQL Flexible Server
 // --------------------------
 resource mysqlServer 'Microsoft.DBforMySQL/flexibleServers@2023-12-30' = {
   name: 'tssnkur-mysql-prod'
@@ -129,7 +129,7 @@ resource mysqlServer 'Microsoft.DBforMySQL/flexibleServers@2023-12-30' = {
 }
 
 // --------------------------
-// 5. Availability Set + NIC + VM (Use password login, remove invalid SSH key)
+// 5. Availability Set + NIC + VM (SKU: Standard_B1ms)
 // --------------------------
 resource appAvailabilitySet 'Microsoft.Compute/availabilitySets@2023-09-01' = {
   name: 'as-tssnkur-app-prod'
@@ -173,14 +173,14 @@ resource appVms 'Microsoft.Compute/virtualMachines@2023-09-01' = [for i in range
       id: appAvailabilitySet.id
     }
     hardwareProfile: {
-      vmSize: 'Standard_B1s'
+      vmSize: 'Standard_B1ms' // <==== Fixed SKU here
     }
     osProfile: {
       computerName: 'app-web-${padLeft(string(i+1),2,'0')}'
       adminUsername: vmAdminUsername
-      adminPassword: vmAdminPassword // 使用密码登录，不再需要SSH公钥
+      adminPassword: vmAdminPassword
       linuxConfiguration: {
-        disablePasswordAuthentication: false // 开启密码登录测试
+        disablePasswordAuthentication: false
       }
     }
     storageProfile: {
