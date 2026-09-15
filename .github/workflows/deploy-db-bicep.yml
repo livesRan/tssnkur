@@ -18,14 +18,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Azure Login (Service Principal)
+      - name: Azure Login (Service Principal with creds JSON)
         uses: azure/login@v2
         with:
-          auth-type: SERVICE_PRINCIPAL
-          client-id: ${{ fromJson(secrets.TSSNKUR_SECRET).clientId }}
-          tenant-id: ${{ fromJson(secrets.TSSNKUR_SECRET).tenantId }}
-          client-secret: ${{ fromJson(secrets.TSSNKUR_SECRET).clientSecret }}
-          subscription-id: ${{ fromJson(secrets.TSSNKUR_SECRET).subscriptionId }}
+          creds: ${{ secrets.TSSNKUR_SECRET }}
 
       - name: Validate current Azure subscription
         run: az account show --query id -o tsv
