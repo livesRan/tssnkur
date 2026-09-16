@@ -9,7 +9,7 @@ set -e # 遇到任何子命令错误立即中断执行
 # 定义全局变量
 RESOURCE_GROUP="rg-tssnkur-prod"
 SERVER_NAME="tssnkur-mysql-prod"
-SUBSCRIPTION_ID="a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+SUBSCRIPTION_ID="3bbc5821-b30f-476a-81c2-795ae462405a"
 LOG_WORKSPACE_NAME="law-tssnkur-prod"
 
 echo "=== 1. 切换至 Tssnkur 生产订阅 ==="
