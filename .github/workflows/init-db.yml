@@ -4,6 +4,7 @@ on:
   workflow_dispatch: # 手动触发
 
 permissions:
+  id-token: write
   contents: read
 
 jobs:
@@ -14,15 +15,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Azure Login with Service Principal
+      - name: Debug list files
+        run: |
+          ls -la
+          ls -la .github/workflows/
+
+      - name: Azure Login OIDC
         uses: azure/login@v2
         with:
           creds: ${{ secrets.TSSNKUR_SECRET }}
 
-      - name: List files debug
-        run: ls -la
-
-      - name: Add execute permission & Run script
-        run: |
-          chmod +x ./initialize-db-config.sh
-          ./initialize-db-config.sh
+      - name: Run script
+        run: bash .github/workflows/initialize-db-config.sh
