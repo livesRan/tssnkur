@@ -29,7 +29,7 @@ az mysql flexible-server parameter set \
   --resource-group "$RESOURCE_GROUP" \
   --server-name "$SERVER_NAME" \
   --name "max_connections" \
-  --value "600"
+  --value "314"
 
 # 启用并配置严格慢查询抓取
 az mysql flexible-server parameter set \
