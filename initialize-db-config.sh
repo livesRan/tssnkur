@@ -50,12 +50,7 @@ az mysql flexible-server parameter set \
   --name "log_queries_not_using_indexes" \
   --value "ON"
 
-# 设定临时过渡认证协议
-az mysql flexible-server parameter set \
-  --resource-group "$RESOURCE_GROUP" \
-  --server-name "$SERVER_NAME" \
-  --name "default_authentication_plugin" \
-  --value "mysql_native_password"
+
 
 # 强制开启传输层 SSL 加密
 az mysql flexible-server parameter set \
