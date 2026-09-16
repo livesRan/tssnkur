@@ -59,19 +59,5 @@ az mysql flexible-server parameter set \
   --name "require_secure_transport" \
   --value "ON"
 
-echo "=== 3. 关联 Log Analytics 工作区开启全面诊断审计日志流 ==="
-SERVER_RESOURCE_ID=$(az mysql flexible-server show --resource-group "$RESOURCE_GROUP" --name "$SERVER_NAME" --query id -o tsv)
-WORKSPACE_RESOURCE_ID=$(az monitor log-analytics workspace show --resource-group "$RESOURCE_GROUP" --workspace-name "$LOG_WORKSPACE_NAME" --query id -o tsv)
-
-az monitor diagnostic-settings create \
-  --name "mysql-prod-diagnostics" \
-  --resource "$SERVER_RESOURCE_ID" \
-  --workspace "$WORKSPACE_RESOURCE_ID" \
-  --logs '[
-    {"category": "MySqlSlowLogs", "enabled": true, "retentionPolicy": {"days": 90, "enabled": true}},
-    {"category": "MySqlAuditLogs", "enabled": true, "retentionPolicy": {"days": 90, "enabled": true}},
-    {"category": "MySqlErrors", "enabled": true, "retentionPolicy": {"days": 90, "enabled": true}}
-  ]' \
-  --metrics '[{"category": "AllMetrics", "enabled": true, "retentionPolicy": {"days": 90, "enabled": true}}]'
 
 echo "=== 4. 自动化参数优化与安全绑定已圆满达成！ ==="
