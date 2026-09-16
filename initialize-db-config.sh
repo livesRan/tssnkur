@@ -22,7 +22,7 @@ az mysql flexible-server parameter set \
   --resource-group "$RESOURCE_GROUP" \
   --server-name "$SERVER_NAME" \
   --name "innodb_buffer_pool_size" \
-  --value "25769803776"
+  --value "1073741824"
 
 # 设定最大并发可用连接水位至 600
 az mysql flexible-server parameter set \
