@@ -1,7 +1,7 @@
 name: Initialize DB Config
 run-name: Run initialize-db-config.sh
 on:
-  workflow_dispatch: # 手动触发
+  workflow_dispatch:
 
 permissions:
   id-token: write
@@ -15,15 +15,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Debug list files
-        run: |
-          ls -la
-          ls -la .github/workflows/
+      - name: Debug - List root files
+        run: ls -la
 
       - name: Azure Login OIDC
         uses: azure/login@v2
         with:
           creds: ${{ secrets.TSSNKUR_SECRET }}
 
-      - name: Run script
-        run: bash .github/workflows/initialize-db-config.sh
+      # 改用bash直接读取文件，绕过executable权限/换行符问题
+      - name: Run initialize db script
+        run: bash ./initialize-db-config.sh
